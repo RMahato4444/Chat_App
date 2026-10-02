@@ -146,15 +146,17 @@ export default function Chat() {
 
   const buildChatMeta = (messageList = []) => {
 
-    const lastMessage = messageList.length
+    const visibleMessages = messageList.filter((message) => !message.deletedForEveryone);
 
-      ? messageList[messageList.length - 1]
+    const lastMessage = visibleMessages.length
+
+      ? visibleMessages[visibleMessages.length - 1]
 
       : null;
 
 
 
-    const unreadCount = messageList.reduce((count, message) => {
+    const unreadCount = visibleMessages.reduce((count, message) => {
 
       const senderId = messageSenderId(message);
 
@@ -340,7 +342,7 @@ export default function Chat() {
 
             String(connection.id),
 
-            buildChatMeta(messageData.messages || []),
+            buildChatMeta((messageData.messages || []).filter((message) => !message.deletedForEveryone)),
 
           ];
 
@@ -656,63 +658,63 @@ export default function Chat() {
 
     socket.on("message:deleted", ({ connection, messageId, mode }) => {
       const connectionId = String(connection);
-      const targetMessageId = String(messageId);
+      const deletedId = String(messageId);
 
       setMessages((prev) => {
         const current = prev[connectionId] || [];
 
-        const next = current.map((message) => {
-          if (String(message.id || message._id) !== targetMessageId) {
-            return message;
-          }
-
-          if (mode === "everyone") {
-            return {
-              ...message,
-              deletedForEveryone: true,
-              deletedForMe: false,
-              text: "This message was deleted",
-            };
-          }
-
+        if (mode === "everyone") {
           return {
-            ...message,
-            deletedForMe: true,
-            text: "This message was deleted",
+            ...prev,
+            [connectionId]: current.filter(
+              (message) => String(message.id || message._id) !== deletedId,
+            ),
           };
-        });
+        }
 
-        return {
-          ...prev,
-          [connectionId]: next,
-        };
+        if (mode === "me") {
+          return {
+            ...prev,
+            [connectionId]: current.map((message) =>
+              String(message.id || message._id) === deletedId
+                ? {
+                    ...message,
+                    deletedForMe: true,
+                    text: "This message was deleted",
+                  }
+                : message,
+            ),
+          };
+        }
+
+        return prev;
       });
 
-      // Update the last-message preview immediately too.
       setChatMeta((prev) => {
-        const meta = prev[connectionId];
-        if (!meta?.lastMessage) return prev;
+        const current = prev[connectionId];
+        if (!current?.lastMessage) return prev;
 
-        const lastId = String(
-          meta.lastMessage.id || meta.lastMessage._id || ""
-        );
+        if (String(current.lastMessage.id || current.lastMessage._id) !== deletedId) {
+          return prev;
+        }
 
-        if (lastId !== targetMessageId) return prev;
+        if (mode === "everyone") {
+          return {
+            ...prev,
+            [connectionId]: {
+              ...current,
+              lastMessage: null,
+            },
+          };
+        }
 
         return {
           ...prev,
           [connectionId]: {
-            ...meta,
+            ...current,
             lastMessage: {
-              ...meta.lastMessage,
-              ...(mode === "everyone"
-                ? {
-                    deletedForEveryone: true,
-                    deletedForMe: false,
-                  }
-                : {
-                    deletedForMe: true,
-                  }),
+              ...current.lastMessage,
+              deletedForMe: true,
               text: "This message was deleted",
             },
           },
@@ -764,7 +766,7 @@ export default function Chat() {
 
           ...prev,
 
-          [selectedId]: nextMessages,
+          [selectedId]: nextMessages.filter((message) => !message.deletedForEveryone),
 
         }));
 
@@ -776,7 +778,7 @@ export default function Chat() {
 
           [String(selectedId)]: {
 
-            ...buildChatMeta(nextMessages),
+            ...buildChatMeta(nextMessages.filter((message) => !message.deletedForEveryone)),
 
             unreadCount: 0,
 
@@ -1077,37 +1079,48 @@ export default function Chat() {
         >
 
           <ChatWindow
+
+            key={selected?.id || "empty-chat"}
+
             currentUser={user}
+
             selected={selected}
+
             messages={messages[selectedId] || []}
+
             socket={socketRef.current}
+
             onBack={() => {
+
               setSelectedId(null);
+
               setMobileChat(false);
+
             }}
             onLocalRemoveMessage={(connectionId, messageId) => {
               setMessages((prev) => ({
                 ...prev,
-                [String(connectionId)]: (prev[String(connectionId)] || []).filter(
+                [connectionId]: (prev[connectionId] || []).filter(
                   (message) =>
-                    String(message.id || message._id) !== String(messageId)
+                    String(message.id || message._id) !== String(messageId),
                 ),
               }));
 
               setChatMeta((prev) => {
-                const meta = prev[String(connectionId)];
-                if (!meta?.lastMessage) return prev;
+                const current = prev[String(connectionId)];
+                if (!current?.lastMessage) return prev;
 
-                const lastId = String(
-                  meta.lastMessage.id || meta.lastMessage._id || ""
-                );
-
-                if (lastId !== String(messageId)) return prev;
+                if (
+                  String(current.lastMessage.id || current.lastMessage._id) !==
+                  String(messageId)
+                ) {
+                  return prev;
+                }
 
                 return {
                   ...prev,
                   [String(connectionId)]: {
-                    ...meta,
+                    ...current,
                     lastMessage: null,
                   },
                 };
@@ -1116,7 +1129,7 @@ export default function Chat() {
             onLocalClearChat={(connectionId) => {
               setMessages((prev) => ({
                 ...prev,
-                [String(connectionId)]: [],
+                [connectionId]: [],
               }));
 
               setChatMeta((prev) => ({
@@ -1127,6 +1140,7 @@ export default function Chat() {
                 },
               }));
             }}
+
           />
 
         </div>
