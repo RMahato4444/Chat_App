@@ -1,4 +1,4 @@
-import { LogOut, Plus, Search, Settings2, UserRound, X } from 'lucide-react';
+import { ImagePlus, LogOut, Plus, Search, Settings2, Trash2, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import Avatar from '../components/Avatar';
@@ -19,6 +19,7 @@ export default function Chat() {
   const [mobileChat, setMobileChat] = useState(false);
   const [busyUser, setBusyUser] = useState('');
   const [notice, setNotice] = useState('');
+  const [profileAction, setProfileAction] = useState('');
   const socketRef = useRef(null);
   const searchTimer = useRef(null);
 
@@ -146,14 +147,45 @@ export default function Chat() {
 
   const uploadPhoto = async (file) => {
     if (!file) return;
+
+    if (file.size > 3 * 1024 * 1024) {
+      setNotice('Profile picture must be 3 MB or smaller.');
+      return;
+    }
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setNotice('Only JPG, PNG, and WEBP images are supported.');
+      return;
+    }
+
     const body = new FormData();
     body.append('profilePicture', file);
+
+    setProfileAction('upload');
     try {
-      const { data } = await api.post('/users/profile/picture', body, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/users/profile/picture', body);
       updateUser(data.user);
       setNotice('Profile picture updated.');
     } catch (err) {
       setNotice(err?.response?.data?.message || 'Could not upload profile picture.');
+    } finally {
+      setProfileAction('');
+    }
+  };
+
+  const removePhoto = async () => {
+    if (!user?.profilePicture || profileAction) return;
+
+    setProfileAction('remove');
+    try {
+      const { data } = await api.delete('/users/profile/picture');
+      updateUser(data.user);
+      setNotice('Profile picture removed.');
+    } catch (err) {
+      setNotice(err?.response?.data?.message || 'Could not remove profile picture.');
+    } finally {
+      setProfileAction('');
     }
   };
 
@@ -246,8 +278,31 @@ export default function Chat() {
           <div onMouseDown={e => e.stopPropagation()} className="glass w-full max-w-md rounded-[28px] p-6">
             <div className="flex items-center justify-between"><h2 className="font-bold text-lg">Your profile</h2><button onClick={() => setProfileOpen(false)} className="h-9 w-9 rounded-xl hover:bg-white/8 grid place-items-center" type="button"><X size={17} /></button></div>
             <div className="mt-6 flex flex-col items-center"><Avatar user={{ ...user, online: true }} showStatus size="xl" /><p className="mt-4 text-xl font-bold">{user.username}</p><p className="text-xs text-blue-100/70 mt-1">Online now</p></div>
-            <label className="mt-6 block rounded-2xl glass-soft p-4 text-center cursor-pointer hover:bg-white/7"><p className="text-sm font-semibold">Change profile picture</p><p className="text-xs text-white/35 mt-1">PNG, JPG or WEBP · max 3 MB</p><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => uploadPhoto(e.target.files?.[0])} className="hidden" /></label>
-            <button onClick={() => { setProfileOpen(false); logout(); }} className="w-full mt-3 rounded-2xl border border-rose-400/15 bg-rose-400/5 text-rose-200 py-3 text-sm font-semibold" type="button"><LogOut size={15} className="inline mr-2" />Sign out</button>
+            <div className="mt-6 space-y-3">
+              <label className={`block rounded-2xl glass-soft p-4 text-center transition ${profileAction ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-white/7'}`}>
+                <ImagePlus size={18} className="mx-auto text-blue-200" />
+                <p className="mt-2 text-sm font-semibold">Change profile picture</p>
+                <p className="text-xs text-white/35 mt-1">PNG, JPG or WEBP · max 3 MB</p>
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={Boolean(profileAction)} onChange={e => { uploadPhoto(e.target.files?.[0]); e.target.value = ''; }} className="hidden" />
+              </label>
+
+              <button
+                onClick={removePhoto}
+                disabled={!user?.profilePicture || Boolean(profileAction)}
+                className={`w-full rounded-2xl border py-3 text-sm font-semibold transition ${
+                  user?.profilePicture && !profileAction
+                    ? 'border-rose-400/15 bg-rose-400/5 text-rose-200 hover:bg-rose-400/10'
+                    : 'border-white/8 bg-white/[.03] text-white/25 cursor-not-allowed'
+                }`}
+                type="button"
+                title={user?.profilePicture ? 'Remove your profile picture' : 'No profile picture to remove'}
+              >
+                <Trash2 size={15} className="inline mr-2" />
+                {profileAction === 'remove' ? 'Removing…' : user?.profilePicture ? 'Remove profile picture' : 'No profile picture to remove'}
+              </button>
+
+              <button onClick={() => { setProfileOpen(false); logout(); }} className="w-full rounded-2xl border border-white/10 bg-white/5 text-white/75 py-3 text-sm font-semibold hover:bg-white/10 transition" type="button"><LogOut size={15} className="inline mr-2" />Sign out</button>
+            </div>
           </div>
         </div>
       )}
