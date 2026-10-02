@@ -26,6 +26,10 @@ import {
 
 
 
+  LoaderCircle,
+
+
+
   MoreHorizontal,
 
 
@@ -302,7 +306,16 @@ function MenuItem({ icon: Icon, children, onClick, tone = 'default' }) {
 
 
 
-export default function ChatWindow({ currentUser, selected, messages, socket, onBack, onLocalRemoveMessage, onLocalClearChat }) {
+export default function ChatWindow({
+  currentUser,
+  selected,
+  messages,
+  socket,
+  onBack,
+  onLocalRemoveMessage,
+  onLocalClearChat,
+  isLoading = false,
+}) {
 
 
 
@@ -1740,7 +1753,34 @@ export default function ChatWindow({ currentUser, selected, messages, socket, on
 
 
 
-        ) : messages.length === 0 ? (
+        
+
+        ) : isLoading ? (
+
+          <div className="h-full grid place-items-center text-center">
+
+            <div className="flex flex-col items-center gap-4">
+
+              <div className="relative h-16 w-16 grid place-items-center">
+
+                <div className="absolute inset-0 rounded-full border-2 border-sky-300/15" />
+
+                <LoaderCircle className="text-sky-300 animate-spin" size={34} strokeWidth={2.2} />
+
+
+              </div>
+
+              <div>
+
+                <p className="text-sm font-semibold text-white/75">Loading chat</p>
+
+
+              </div>
+
+            </div>
+
+          </div>
+) : messages.length === 0 ? (
 
 
 

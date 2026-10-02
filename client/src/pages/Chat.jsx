@@ -56,6 +56,8 @@ export default function Chat() {
 
   const [mobileChat, setMobileChat] = useState(false);
 
+  const [chatLoading, setChatLoading] = useState(false);
+
   const [busyUser, setBusyUser] = useState("");
 
   const [notice, setNotice] = useState("");
@@ -748,7 +750,18 @@ export default function Chat() {
 
   useEffect(() => {
 
-    if (!selectedId || selected?.status !== "accepted") return;
+    if (!selectedId) {
+      setChatLoading(false);
+      return;
+    }
+
+    if (selected?.status !== "accepted") {
+      setChatLoading(false);
+      return;
+    }
+
+    let active = true;
+    setChatLoading(true);
 
     socketRef.current?.emit("conversation:join", { connectionId: selectedId });
 
@@ -758,28 +771,24 @@ export default function Chat() {
 
       .then(({ data }) => {
 
+        if (!active) return;
+
         const nextMessages = data.messages || [];
-
-
+        const visibleMessages = nextMessages.filter((message) => !message.deletedForEveryone);
 
         setMessages((prev) => ({
 
           ...prev,
-
-          [selectedId]: nextMessages.filter((message) => !message.deletedForEveryone),
+          [selectedId]: visibleMessages,
 
         }));
-
-
 
         setChatMeta((prev) => ({
 
           ...prev,
-
           [String(selectedId)]: {
 
-            ...buildChatMeta(nextMessages.filter((message) => !message.deletedForEveryone)),
-
+            ...buildChatMeta(visibleMessages),
             unreadCount: 0,
 
           },
@@ -788,28 +797,30 @@ export default function Chat() {
 
       })
 
-      .catch(() => {});
+      .catch(() => {})
+
+      .finally(() => {
+        if (active) setChatLoading(false);
+      });
 
     api.post(`/messages/${selectedId}/read`).catch(() => {});
-
     socketRef.current?.emit("messages:read", { connectionId: selectedId });
-
-
 
     setChatMeta((prev) => ({
 
       ...prev,
-
       [String(selectedId)]: {
 
         ...(prev[String(selectedId)] || {}),
-
         unreadCount: 0,
 
       },
 
     }));
 
+    return () => {
+      active = false;
+    };
   }, [selectedId, selected?.status]);
 
 
@@ -1089,6 +1100,8 @@ export default function Chat() {
             messages={messages[selectedId] || []}
 
             socket={socketRef.current}
+
+            isLoading={chatLoading}
 
             onBack={() => {
 
