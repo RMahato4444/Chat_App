@@ -17,7 +17,7 @@ button, input, textarea { font: inherit; }
   min-height: 100%;
   background:
     linear-gradient(rgba(4, 10, 20, .56), rgba(4, 10, 20, .72)),
-    url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ1YLCIAeRNEVh-ZxrzzqyiNuLmyik60_CQu6vkKYP6wg&s=10') center / cover fixed,
+    url("/background") center / cover fixed,
     linear-gradient(145deg, #07111f 0%, #0a1627 50%, #06101d 100%);
 }
 
