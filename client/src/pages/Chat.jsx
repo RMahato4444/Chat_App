@@ -39,6 +39,18 @@ export default function Chat() {
   );
 
   const selected = enrichedConnections.find(c => c.id === selectedId) || null;
+  const connectionByUserId = useMemo(
+    () => new Map(connections.map(connection => [String(connection.user.id), connection])),
+    [connections]
+  );
+
+  const openConnectionFromSearch = (connection) => {
+    setSelectedId(connection.id);
+    setMobileChat(true);
+    setSearch('');
+    setSearchResults([]);
+    setNotice('');
+  };
 
   const refreshConnections = async () => {
     const { data } = await api.get('/users/connections');
@@ -81,6 +93,57 @@ export default function Chat() {
       if (current.some(m => (m.id || m._id) === message.id)) return prev;
       return { ...prev, [message.connection]: [...current, message] };
     }));
+
+    socket.on('message:status', ({ connection, messageIds = [], deliveredAt, readAt }) => {
+      setMessages(prev => {
+        const current = prev[connection] || [];
+        const ids = new Set(messageIds.map(String));
+        if (!ids.size) return prev;
+        const next = current.map(message => {
+          const id = String(message.id || message._id);
+          if (!ids.has(id)) return message;
+          return {
+            ...message,
+            ...(deliveredAt ? { deliveredAt } : {}),
+            ...(readAt ? { readAt } : {}),
+          };
+        });
+        return { ...prev, [connection]: next };
+      });
+    });
+
+    socket.on('message:update', (message) => {
+      setMessages(prev => {
+        const current = prev[message.connection] || [];
+        const index = current.findIndex(m => String(m.id || m._id) === String(message.id));
+        if (index === -1) return { ...prev, [message.connection]: [...current, message] };
+        const next = [...current];
+        next[index] = { ...next[index], ...message };
+        return { ...prev, [message.connection]: next };
+      });
+    });
+
+    socket.on('message:deleted', ({ connection, messageId, mode }) => {
+      setMessages(prev => {
+        const current = prev[connection] || [];
+        const id = String(messageId);
+        if (mode === 'everyone') {
+          return { ...prev, [connection]: current.filter(m => String(m.id || m._id) !== id) };
+        }
+        return {
+          ...prev,
+          [connection]: current.map(message =>
+            String(message.id || message._id) === id
+              ? { ...message, deletedForMe: true, text: 'This message was deleted' }
+              : message
+          ),
+        };
+      });
+    });
+
+    socket.on('chat:cleared', ({ connection }) => {
+      setMessages(prev => ({ ...prev, [connection]: [] }));
+    });
     socket.on('connection:new', () => {
       refreshConnections();
       setNotice('New chat invite received.');
@@ -204,11 +267,22 @@ export default function Chat() {
             messages={messages[selectedId] || []}
             socket={socketRef.current}
             onBack={() => setMobileChat(false)}
+            onLocalRemoveMessage={(connectionId, messageId) => {
+              setMessages(prev => ({
+                ...prev,
+                [connectionId]: (prev[connectionId] || []).filter(
+                  message => String(message.id || message._id) !== String(messageId)
+                ),
+              }));
+            }}
+            onLocalClearChat={(connectionId) => {
+              setMessages(prev => ({ ...prev, [connectionId]: [] }));
+            }}
           />
         </div>
 
         <aside className={`${mobileChat ? 'hidden' : 'flex'} lg:flex glass rounded-[28px] min-h-0 flex-col overflow-hidden`}>
-          <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-white/10 bg-black/10">
+          <header className="relative z-40 px-4 sm:px-5 pt-4 pb-3 border-b border-white/10 bg-black/10">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar user={{ ...user, online: true }} showStatus />
@@ -225,27 +299,64 @@ export default function Chat() {
 
             <div className="relative mt-4">
               <Search size={17} className="absolute left-3.5 top-3.5 text-white/30" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username to invite…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-blue-300/30" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-blue-300/30" />
               {search && <button onClick={() => { setSearch(''); setSearchResults([]); }} className="absolute right-2 top-2 h-8 w-8 rounded-xl grid place-items-center hover:bg-white/8 text-white/35" type="button"><X size={15} /></button>}
               {search && searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-[52px] z-20 glass rounded-2xl p-2 shadow-glass animate-pop">
-                  {searchResults.map(result => (
-                    <div key={result.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5">
-                      <Avatar user={result} showStatus size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{result.username}</p>
-                        <p className="text-[10px] text-white/35">{result.online ? 'Online now' : 'Username match'}</p>
+                <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(55vh,360px)] overflow-y-auto chat-scroll rounded-2xl border border-blue-100/20 bg-[#020914] shadow-[0_24px_70px_rgba(0,0,0,.75)] p-2 animate-pop isolate">
+                  {searchResults.map(result => {
+                    const connection = connectionByUserId.get(String(result.id));
+                    const isConnected = connection?.status === 'accepted';
+                    const isPending = connection?.status === 'pending';
+
+                    if (isConnected) {
+                      return (
+                        <button
+                          key={result.id}
+                          type="button"
+                          onClick={() => openConnectionFromSearch(connection)}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl text-left bg-[#0a1c33] border border-blue-200/15 hover:bg-[#102b4d] hover:border-blue-200/30 transition shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_8px_24px_rgba(0,0,0,.20)]"
+                        >
+                          <Avatar user={result} showStatus size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{result.username}</p>
+                            <p className="text-[11px] text-blue-100/65 mt-0.5">Already connected · click to open chat</p>
+                          </div>
+                          <span className="shrink-0 rounded-xl bg-blue-400/20 border border-blue-200/25 px-3 py-2 text-xs font-bold text-white shadow-[0_6px_18px_rgba(59,130,246,.16)]">Open chat</span>
+                        </button>
+                      );
+                    }
+
+                    if (isPending) {
+                      return (
+                        <div key={result.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0a1728] border border-white/[.07] hover:bg-[#10243d] transition">
+                          <Avatar user={result} showStatus size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{result.username}</p>
+                            <p className="text-[10px] text-amber-100/50">Chat invite pending</p>
+                          </div>
+                          <span className="shrink-0 rounded-xl bg-amber-400/10 border border-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100/80">Pending</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={result.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0a1728] border border-white/[.07] hover:bg-[#10243d] transition">
+                        <Avatar user={result} showStatus size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{result.username}</p>
+                          <p className="text-[10px] text-white/35">{result.online ? 'Online now' : 'Username match'}</p>
+                        </div>
+                        <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="shrink-0 rounded-xl bg-blue-400/20 border border-blue-200/20 px-3 py-2 text-xs font-bold text-blue-100 hover:bg-blue-400/30 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
                       </div>
-                      <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="rounded-xl bg-blue-400/15 border border-blue-300/15 px-3 py-2 text-xs font-bold text-blue-200 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
             {notice && <button onClick={() => setNotice('')} className="mt-3 w-full text-left rounded-xl bg-blue-500/10 border border-blue-300/10 px-3 py-2 text-xs text-white/60 truncate" type="button">{notice}</button>}
           </header>
 
-          <div className="flex-1 overflow-y-auto chat-scroll p-2.5 sm:p-3 space-y-1.5">
+          <div className="relative z-10 flex-1 overflow-y-auto chat-scroll p-2.5 sm:p-3 space-y-1.5">
             <div className="px-2 pt-2 pb-2 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[.12em] text-white/30">People & chats</p>
               <span className="text-[10px] text-white/20">{connections.length}</span>
