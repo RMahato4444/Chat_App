@@ -1,7 +1,14 @@
 import axios from 'axios';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || API_URL.replace(/\/api\/?$/, '') || 'http://localhost:5000';
+export const BACKEND_URL = SOCKET_URL.replace(/\/$/, '');
+
+export function assetUrl(value) {
+  if (!value) return null;
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  return `${BACKEND_URL}${value.startsWith('/') ? value : `/${value}`}`;
+}
 
 export const api = axios.create({ baseURL: API_URL });
 

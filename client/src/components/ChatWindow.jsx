@@ -29,7 +29,7 @@ export default function ChatWindow({ currentUser, selected, messages = [], socke
     return (
       <section className="glass rounded-[28px] h-full hidden md:grid place-items-center text-center p-8">
         <div className="max-w-sm">
-          <LockKeyhole className="mx-auto text-emerald-300/80" size={44} />
+          <LockKeyhole className="mx-auto text-blue-300/80" size={44} />
           <h2 className="mt-4 text-xl font-bold">Choose a chat</h2>
           <p className="text-sm text-white/45 mt-2">
             Search a username and send an invite. Messaging unlocks only after the other person accepts.
@@ -56,7 +56,7 @@ export default function ChatWindow({ currentUser, selected, messages = [], socke
               <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.7)]' : 'bg-white/20'}`} />
             )}
           </div>
-          <p className={`text-xs mt-1 truncate ${online ? 'text-emerald-200/85' : 'text-white/40'}`}>
+          <p className={`text-xs mt-1 truncate ${online ? 'text-blue-200/85' : 'text-white/40'}`}>
             {selected.status === 'accepted'
               ? presenceLabel(selected.user)
               : pendingIncoming
@@ -66,12 +66,12 @@ export default function ChatWindow({ currentUser, selected, messages = [], socke
         </div>
       </header>
 
-      <div className="chat-wallpaper flex-1 min-h-0 overflow-y-auto chat-scroll px-4 sm:px-6 py-5 space-y-3">
+      <div className="chat-surface flex-1 min-h-0 overflow-y-auto chat-scroll px-4 sm:px-6 py-5 space-y-3">
         {selected.status !== 'accepted' ? (
           <div className="h-full grid place-items-center text-center">
             <div className="max-w-sm glass-soft rounded-3xl p-6">
               <div className="mx-auto h-14 w-14 rounded-2xl bg-white/8 border border-white/10 grid place-items-center">
-                <LockKeyhole size={24} className="text-emerald-200" />
+                <LockKeyhole size={24} className="text-blue-200" />
               </div>
               <h3 className="mt-4 font-bold">Chat is locked</h3>
               <p className="mt-2 text-sm text-white/50">
@@ -95,12 +95,12 @@ export default function ChatWindow({ currentUser, selected, messages = [], socke
               <div
                 className={`max-w-[82%] sm:max-w-[68%] rounded-[20px] px-4 py-3 border backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,.14)] ${
                   mine
-                    ? 'bg-emerald-400/28 border-emerald-200/20 text-white rounded-br-md'
+                    ? 'bg-blue-500/35 border-blue-200/25 text-white rounded-br-md'
                     : 'bg-white/[.11] border-white/12 text-white rounded-bl-md'
                 }`}
               >
                 <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
-                <div className={`mt-2 flex items-center justify-end gap-1.5 text-[10px] ${mine ? 'text-emerald-50/65' : 'text-white/40'}`}>
+                <div className={`mt-2 flex items-center justify-end gap-1.5 text-[10px] ${mine ? 'text-blue-50/65' : 'text-white/40'}`}>
                   <span>{timeLabel(message.createdAt)}</span>
                   {mine && <CheckCheck size={13} />}
                 </div>
@@ -130,7 +130,7 @@ export default function ChatWindow({ currentUser, selected, messages = [], socke
           <button
             type="submit"
             disabled={!text.trim() || selected.status !== 'accepted'}
-            className="h-11 w-11 rounded-xl bg-emerald-400 text-[#05240f] grid place-items-center shadow-[0_8px_26px_rgba(52,211,153,.18)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-emerald-300 transition"
+            className="h-11 w-11 rounded-xl bg-blue-500 text-white grid place-items-center shadow-[0_8px_26px_rgba(59,130,246,.24)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-400 transition"
           >
             <Send size={18} />
           </button>

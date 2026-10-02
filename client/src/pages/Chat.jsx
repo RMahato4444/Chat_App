@@ -182,7 +182,7 @@ export default function Chat() {
                 <Avatar user={{ ...user, online: true }} showStatus />
                 <div className="min-w-0">
                   <p className="font-bold truncate">{user.username}</p>
-                  <p className="text-[11px] text-emerald-200/80 mt-0.5">Online</p>
+                  <p className="text-[11px] text-blue-100/85 mt-0.5">Online</p>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -193,7 +193,7 @@ export default function Chat() {
 
             <div className="relative mt-4">
               <Search size={17} className="absolute left-3.5 top-3.5 text-white/30" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username to invite…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-emerald-300/30" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username to invite…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-blue-300/30" />
               {search && <button onClick={() => { setSearch(''); setSearchResults([]); }} className="absolute right-2 top-2 h-8 w-8 rounded-xl grid place-items-center hover:bg-white/8 text-white/35" type="button"><X size={15} /></button>}
               {search && searchResults.length > 0 && (
                 <div className="absolute left-0 right-0 top-[52px] z-20 glass rounded-2xl p-2 shadow-glass animate-pop">
@@ -204,13 +204,13 @@ export default function Chat() {
                         <p className="text-sm font-medium truncate">{result.username}</p>
                         <p className="text-[10px] text-white/35">{result.online ? 'Online now' : 'Username match'}</p>
                       </div>
-                      <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="rounded-xl bg-emerald-400/15 border border-emerald-300/15 px-3 py-2 text-xs font-bold text-emerald-200 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
+                      <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="rounded-xl bg-blue-400/15 border border-blue-300/15 px-3 py-2 text-xs font-bold text-blue-200 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            {notice && <button onClick={() => setNotice('')} className="mt-3 w-full text-left rounded-xl bg-emerald-400/8 border border-emerald-300/10 px-3 py-2 text-xs text-white/60 truncate" type="button">{notice}</button>}
+            {notice && <button onClick={() => setNotice('')} className="mt-3 w-full text-left rounded-xl bg-blue-500/10 border border-blue-300/10 px-3 py-2 text-xs text-white/60 truncate" type="button">{notice}</button>}
           </header>
 
           <div className="flex-1 overflow-y-auto chat-scroll p-2.5 sm:p-3 space-y-1.5">
@@ -221,7 +221,7 @@ export default function Chat() {
 
             {sortedConnections.length === 0 && (
               <div className="m-2 rounded-2xl glass-soft p-5 text-center">
-                <Plus className="mx-auto text-emerald-300/70" size={24} />
+                <Plus className="mx-auto text-blue-200/80" size={24} />
                 <p className="mt-3 text-sm font-semibold">No chats yet</p>
                 <p className="mt-1 text-xs text-white/35">Use the username search above to send your first chat invite.</p>
               </div>
@@ -245,7 +245,7 @@ export default function Chat() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 grid place-items-center" onMouseDown={() => setProfileOpen(false)}>
           <div onMouseDown={e => e.stopPropagation()} className="glass w-full max-w-md rounded-[28px] p-6">
             <div className="flex items-center justify-between"><h2 className="font-bold text-lg">Your profile</h2><button onClick={() => setProfileOpen(false)} className="h-9 w-9 rounded-xl hover:bg-white/8 grid place-items-center" type="button"><X size={17} /></button></div>
-            <div className="mt-6 flex flex-col items-center"><Avatar user={{ ...user, online: true }} showStatus size="xl" /><p className="mt-4 text-xl font-bold">{user.username}</p><p className="text-xs text-emerald-200/60 mt-1">Online now</p></div>
+            <div className="mt-6 flex flex-col items-center"><Avatar user={{ ...user, online: true }} showStatus size="xl" /><p className="mt-4 text-xl font-bold">{user.username}</p><p className="text-xs text-blue-100/70 mt-1">Online now</p></div>
             <label className="mt-6 block rounded-2xl glass-soft p-4 text-center cursor-pointer hover:bg-white/7"><p className="text-sm font-semibold">Change profile picture</p><p className="text-xs text-white/35 mt-1">PNG, JPG or WEBP · max 3 MB</p><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => uploadPhoto(e.target.files?.[0])} className="hidden" /></label>
             <button onClick={() => { setProfileOpen(false); logout(); }} className="w-full mt-3 rounded-2xl border border-rose-400/15 bg-rose-400/5 text-rose-200 py-3 text-sm font-semibold" type="button"><LogOut size={15} className="inline mr-2" />Sign out</button>
           </div>

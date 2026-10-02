@@ -4,9 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#05240f',
-        aqua: '#25D366',
-        whatsapp: '#25D366'
+        ink: '#07111f',
+        aqua: '#3b82f6',
+        whatsapp: '#3b82f6',
+        bluechat: '#3b82f6'
       },
       boxShadow: {
         glass: '0 24px 80px rgba(0,0,0,.34)'

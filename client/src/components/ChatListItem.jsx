@@ -19,7 +19,7 @@ export default function ChatListItem({
     <div
       className={`w-full rounded-2xl p-3 transition duration-200 ${
         active
-          ? 'bg-white/[.10] ring-1 ring-emerald-300/20 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]'
+          ? 'bg-white/[.10] ring-1 ring-blue-300/20 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]'
           : 'hover:bg-white/[.05]'
       }`}
     >
@@ -31,10 +31,10 @@ export default function ChatListItem({
             <div className="flex items-center justify-between gap-2">
               <p className="font-semibold truncate text-white">{item.user.username}</p>
               {item.status === 'accepted' && (
-                <MessageCircle size={15} className="text-emerald-300 shrink-0" />
+                <MessageCircle size={15} className="text-blue-300 shrink-0" />
               )}
               {item.status === 'pending' && (
-                <Clock3 size={15} className="text-emerald-200/80 shrink-0" />
+                <Clock3 size={15} className="text-blue-100/85 shrink-0" />
               )}
             </div>
 
@@ -61,7 +61,7 @@ export default function ChatListItem({
           <button
             type="button"
             onClick={onAccept}
-            className="flex-1 rounded-xl bg-emerald-400/15 border border-emerald-300/15 text-emerald-200 text-xs font-semibold px-3 py-2 flex items-center justify-center gap-1 backdrop-blur-md hover:bg-emerald-400/20 transition"
+            className="flex-1 rounded-xl bg-blue-400/15 border border-blue-300/15 text-blue-200 text-xs font-semibold px-3 py-2 flex items-center justify-center gap-1 backdrop-blur-md hover:bg-blue-400/20 transition"
           >
             <Check size={14} />
             Accept

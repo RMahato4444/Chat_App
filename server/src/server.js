@@ -14,7 +14,10 @@ import { setupSocket } from './socket/socket.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const uploadsDir = path.join(root, 'uploads');
+const uploadsDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(root, 'uploads');
+
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const app = express();
