@@ -393,11 +393,23 @@ export default function ChatWindow({ currentUser, selected, messages, socket, on
               : pendingIncoming ? 'Invite awaiting your response' : 'Waiting for acceptance'}
           </p>
         </div>
-        {selected.status === 'accepted' && (
-          <button type="button" onClick={requestClearChat} disabled={clearing} title="Clear entire chat" aria-label="Clear entire chat" className="clear-chat-btn h-10 w-10 rounded-xl grid place-items-center disabled:opacity-40">
-            <Trash2 size={17} />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onBack}
+            title="Exit chat"
+            aria-label="Exit chat"
+            className="h-10 px-3 sm:px-4 rounded-xl border border-sky-200/20 bg-sky-500/20 text-sky-50 hover:bg-sky-500/35 hover:border-sky-200/35 transition flex items-center gap-2 font-medium text-sm shadow-[0_8px_24px_rgba(14,165,233,0.12)]"
+          >
+            <ArrowLeft size={16} />
+            <span>Exit chat</span>
           </button>
-        )}
+          {selected.status === 'accepted' && (
+            <button type="button" onClick={requestClearChat} disabled={clearing} title="Clear entire chat" aria-label="Clear entire chat" className="clear-chat-btn h-10 w-10 rounded-xl grid place-items-center disabled:opacity-40">
+              <Trash2 size={17} />
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="chat-body-glass flex-1 min-h-0 overflow-y-auto chat-scroll px-4 sm:px-6 py-5 space-y-3">

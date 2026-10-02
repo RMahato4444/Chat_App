@@ -266,7 +266,10 @@ export default function Chat() {
             selected={selected}
             messages={messages[selectedId] || []}
             socket={socketRef.current}
-            onBack={() => setMobileChat(false)}
+            onBack={() => {
+              setSelectedId(null);
+              setMobileChat(false);
+            }}
             onLocalRemoveMessage={(connectionId, messageId) => {
               setMessages(prev => ({
                 ...prev,
