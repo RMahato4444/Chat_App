@@ -2,35 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: dark; }
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; height: 100%; }
-body { margin: 0; background: #050b0d; color: #eef7f6; }
-button, input { font: inherit; }
+body { margin: 0; background: #06100b; color: #f4fff7; }
+button, input, textarea { font: inherit; }
 
 .app-bg {
-  min-height: 100%;
+  position: relative;
   background:
-    radial-gradient(circle at 10% 10%, rgba(37,212,181,.16), transparent 28%),
-    radial-gradient(circle at 90% 0%, rgba(90,111,255,.13), transparent 26%),
-    linear-gradient(145deg, #050b0d 0%, #081417 48%, #061011 100%);
+    linear-gradient(rgba(3, 13, 8, .64), rgba(3, 13, 8, .82)),
+    url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ1YLCIAeRNEVh-ZxrzzqyiNuLmyik60_CQu6vkKYP6wg&s=10') center / cover fixed,
+    linear-gradient(145deg, #06110b 0%, #0a1710 50%, #04100a 100%);
+}
+
+.app-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(37, 211, 102, .16), transparent 26%),
+    radial-gradient(circle at 88% 12%, rgba(255, 255, 255, .08), transparent 22%),
+    linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.24));
 }
 
 .glass {
-  background: rgba(14, 27, 30, .82);
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 24px 80px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.04);
-  backdrop-filter: blur(22px);
+  background: rgba(8, 22, 14, .46);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 24px 80px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
 }
 
 .glass-soft {
-  background: rgba(255,255,255,.045);
-  border: 1px solid rgba(255,255,255,.07);
-  backdrop-filter: blur(16px);
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.09);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.chat-wallpaper {
+  background:
+    linear-gradient(rgba(4, 16, 10, .56), rgba(4, 16, 10, .74)),
+    url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ1YLCIAeRNEVh-ZxrzzqyiNuLmyik60_CQu6vkKYP6wg&s=10') center / cover;
+  background-attachment: local;
 }
 
 .chat-scroll::-webkit-scrollbar { width: 7px; }
-.chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 99px; }
+.chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 99px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
 
-@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+::selection { background: rgba(37,211,102,.28); color: white; }
+
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .animate-pop { animation: pop .2s ease-out; }

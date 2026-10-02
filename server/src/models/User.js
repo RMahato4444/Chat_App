@@ -13,7 +13,8 @@ const userSchema = new mongoose.Schema(
     },
     usernameLower: { type: String, required: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
-    profilePicture: { type: String, default: null }
+    profilePicture: { type: String, default: null },
+    lastSeen: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );

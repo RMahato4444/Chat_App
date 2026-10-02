@@ -4,11 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#071013',
-        aqua: '#25d4b5'
+        ink: '#05240f',
+        aqua: '#25D366',
+        whatsapp: '#25D366'
       },
       boxShadow: {
-        glass: '0 24px 80px rgba(0,0,0,.36)'
+        glass: '0 24px 80px rgba(0,0,0,.34)'
       }
     }
   },
