@@ -380,12 +380,18 @@ export default function ChatWindow({ currentUser, selected, messages, socket, on
 
   return (
     <section ref={chatRef} className="glass rounded-[28px] h-full min-h-0 flex flex-col overflow-hidden border-white/10">
-      <header className="chat-header-glass h-[76px] shrink-0 border-b border-sky-200/10 px-4 sm:px-5 flex items-center gap-3">
-        <button className="md:hidden h-10 w-10 rounded-xl hover:bg-white/10 grid place-items-center" onClick={onBack} type="button" aria-label="Back"><ArrowLeft size={19} /></button>
-        <Avatar user={selected.user} showStatus />
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold truncate">{selected.user.username}</p>
-          <p className={`text-xs mt-1 ${selected.user.online ? 'text-emerald-200/80' : 'text-white/40'}`}>
+      <header className="chat-header-glass shrink-0 border-b border-sky-200/10 px-2.5 sm:px-4 py-2 sm:h-[64px] sm:py-0 flex items-center gap-2 sm:gap-2.5">
+        <button className="md:hidden h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl hover:bg-white/10 grid place-items-center" onClick={onBack} type="button" aria-label="Back to chats">
+          <ArrowLeft size={18} />
+        </button>
+
+        <div className="shrink-0">
+          <Avatar user={selected.user} showStatus size="sm" />
+        </div>
+
+        <div className="min-w-0 flex-1 self-center">
+          <p className="font-semibold text-[13px] sm:text-sm leading-tight truncate">{selected.user.username}</p>
+          <p className={`text-[9px] sm:text-[11px] mt-0.5 leading-3.5 whitespace-nowrap overflow-hidden text-ellipsis ${selected.user.online ? 'text-emerald-200/80' : 'text-white/45'}`}>
             {selected.status === 'accepted'
               ? selected.user.online
                 ? 'Online · real-time chat'
@@ -393,20 +399,30 @@ export default function ChatWindow({ currentUser, selected, messages, socket, on
               : pendingIncoming ? 'Invite awaiting your response' : 'Waiting for acceptance'}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={onBack}
             title="Exit chat"
             aria-label="Exit chat"
-            className="h-10 px-3 sm:px-4 rounded-xl border border-sky-200/20 bg-sky-500/20 text-sky-50 hover:bg-sky-500/35 hover:border-sky-200/35 transition flex items-center gap-2 font-medium text-sm shadow-[0_8px_24px_rgba(14,165,233,0.12)]"
+            className="exit-chat-btn h-8.5 sm:h-9 px-2 sm:px-3.5 rounded-xl border flex items-center justify-center gap-1.5 font-semibold text-xs sm:text-sm shadow-[0_8px_24px_rgba(14,165,233,0.12)]"
           >
-            <ArrowLeft size={16} />
-            <span>Exit chat</span>
+            <ArrowLeft size={14} className="sm:size-[16px]" />
+            <span className="hidden sm:inline">Exit chat</span>
+            <span className="sm:hidden">Exit</span>
           </button>
+
           {selected.status === 'accepted' && (
-            <button type="button" onClick={requestClearChat} disabled={clearing} title="Clear entire chat" aria-label="Clear entire chat" className="clear-chat-btn h-10 w-10 rounded-xl grid place-items-center disabled:opacity-40">
-              <Trash2 size={17} />
+            <button
+              type="button"
+              onClick={requestClearChat}
+              disabled={clearing}
+              title="Clear entire chat"
+              aria-label="Clear entire chat"
+              className="clear-chat-btn h-8.5 w-8.5 sm:h-9 sm:w-9 rounded-xl grid place-items-center disabled:opacity-40"
+            >
+              <Trash2 size={16} />
             </button>
           )}
         </div>

@@ -13,6 +13,7 @@ export default function Chat() {
   const [presence, setPresence] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState({});
+  const [chatMeta, setChatMeta] = useState({});
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -22,6 +23,75 @@ export default function Chat() {
   const [profileAction, setProfileAction] = useState('');
   const socketRef = useRef(null);
   const searchTimer = useRef(null);
+  const selectedIdRef = useRef(null);
+
+  const currentUserId = String(user?.id || user?._id || '');
+
+  const messageSenderId = (message) => {
+    const sender = message?.sender;
+
+    if (typeof sender === 'string' || typeof sender === 'number') {
+      return String(sender);
+    }
+
+    return String(
+      sender?.id ||
+      sender?._id ||
+      message?.senderId ||
+      message?.userId ||
+      message?.user?.id ||
+      message?.user?._id ||
+      message?.from?.id ||
+      message?.from?._id ||
+      message?.senderUser?.id ||
+      message?.senderUser?._id ||
+      ''
+    );
+  };
+
+  const isOwnMessage = (message) => {
+    const senderId = messageSenderId(message);
+    return Boolean(senderId) && senderId === currentUserId;
+  };
+
+  const messageText = (message) => {
+    if (!message) return '';
+    if (message.deletedForMe || message.deletedForEveryone) {
+      return 'This message was deleted';
+    }
+    return String(message.text || message.content || '').trim();
+  };
+
+  const buildChatMeta = (messageList = []) => {
+    const lastMessage = messageList.length
+      ? messageList[messageList.length - 1]
+      : null;
+
+    const unreadCount = messageList.reduce((count, message) => {
+      const senderId = messageSenderId(message);
+      const isIncoming = Boolean(senderId) && senderId !== currentUserId;
+      const isUnread = isIncoming && !message.readAt && !message.deletedForMe;
+      return count + (isUnread ? 1 : 0);
+    }, 0);
+
+    return {
+      lastMessage,
+      unreadCount,
+    };
+  };
+
+  const setChatMetaFromMessages = (connectionId, messageList, unreadOverride) => {
+    const meta = buildChatMeta(messageList);
+    setChatMeta((prev) => ({
+      ...prev,
+      [String(connectionId)]: {
+        ...meta,
+        ...(typeof unreadOverride === 'number'
+          ? { unreadCount: unreadOverride }
+          : {}),
+      },
+    }));
+  };
 
   const enrichedConnections = useMemo(
     () => connections.map((connection) => {
@@ -39,35 +109,75 @@ export default function Chat() {
   );
 
   const selected = enrichedConnections.find(c => c.id === selectedId) || null;
-  const connectionByUserId = useMemo(
-    () => new Map(connections.map(connection => [String(connection.user.id), connection])),
-    [connections]
-  );
 
-  const openConnectionFromSearch = (connection) => {
-    setSelectedId(connection.id);
-    setMobileChat(true);
-    setSearch('');
-    setSearchResults([]);
-    setNotice('');
-  };
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   const refreshConnections = async () => {
     const { data } = await api.get('/users/connections');
-    const list = data.connections.map(item => ({ ...item, currentUserId: user.id }));
+    const list = (data.connections || []).map((item) => ({
+      ...item,
+      currentUserId: user.id,
+    }));
+
     setConnections(list);
-    setPresence(prev => {
+
+    setPresence((prev) => {
       const next = { ...prev };
+
       for (const item of list) {
-        next[item.user.id] = {
-          online: item.user.online,
-          lastSeen: item.user.lastSeen
+        const userId = String(item.user?.id || item.user?._id);
+        if (!userId) continue;
+
+        next[userId] = {
+          online: item.user?.online ?? false,
+          lastSeen: item.user?.lastSeen ?? null,
         };
       }
+
       return next;
     });
-    setSelectedId(prev => prev && list.some(x => x.id === prev) ? prev : null);
+
+    setSelectedId((prev) =>
+      prev && list.some((item) => item.id === prev) ? prev : null
+    );
+
+    const accepted = list.filter((item) => item.status === 'accepted');
+
+    const results = await Promise.all(
+      accepted.map(async (connection) => {
+        try {
+          const { data: messageData } = await api.get(
+            `/messages/${connection.id}`
+          );
+          return [String(connection.id), buildChatMeta(messageData.messages || [])];
+        } catch {
+          return [String(connection.id), { lastMessage: null, unreadCount: 0 }];
+        }
+      })
+    );
+
+    setChatMeta((prev) => {
+      const next = { ...prev };
+
+      results.forEach(([connectionId, meta]) => {
+        const existing = prev[connectionId];
+        next[connectionId] = {
+          ...meta,
+          // Preserve a locally newer unread count if refresh happens while
+          // a live message is arriving.
+          unreadCount:
+            typeof existing?.unreadCount === 'number'
+              ? Math.max(existing.unreadCount, meta.unreadCount)
+              : meta.unreadCount,
+        };
+      });
+
+      return next;
+    });
   };
+
 
   useEffect(() => {
     refreshConnections().catch(() => setNotice('Could not load your chats.'));
@@ -88,62 +198,109 @@ export default function Chat() {
         [userId]: { online, lastSeen: online ? null : lastSeen }
       }));
     });
-    socket.on('message:new', (message) => setMessages(prev => {
-      const current = prev[message.connection] || [];
-      if (current.some(m => (m.id || m._id) === message.id)) return prev;
-      return { ...prev, [message.connection]: [...current, message] };
-    }));
+    socket.on('message:new', (message) => {
+      const connectionId = String(message.connection);
+      const senderId = messageSenderId(message);
+      const incoming = Boolean(senderId) && senderId !== currentUserId;
+      const isCurrentConversation = selectedIdRef.current === connectionId;
+
+      setMessages((prev) => {
+        const current = prev[connectionId] || [];
+
+        if (
+          current.some(
+            (m) => String(m.id || m._id) === String(message.id || message._id)
+          )
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [connectionId]: [...current, message],
+        };
+      });
+
+      setChatMeta((prev) => {
+        const current = prev[connectionId] || {
+          lastMessage: null,
+          unreadCount: 0,
+        };
+
+        return {
+          ...prev,
+          [connectionId]: {
+            ...current,
+            lastMessage: message,
+            unreadCount:
+              incoming && !isCurrentConversation
+                ? current.unreadCount + 1
+                : current.unreadCount,
+          },
+        };
+      });
+
+      // Move this connection to the top immediately whenever a new
+      // message arrives, whether it was sent or received.
+      setConnections((prev) =>
+        prev.map((connection) =>
+          String(connection.id) === connectionId
+            ? {
+                ...connection,
+                updatedAt:
+                  message.createdAt ||
+                  message.sentAt ||
+                  message.timestamp ||
+                  new Date().toISOString(),
+              }
+            : connection
+        )
+      );
+
+      if (incoming && isCurrentConversation) {
+        api.post(`/messages/${connectionId}/read`).catch(() => {});
+        socketRef.current?.emit('messages:read', {
+          connectionId,
+        });
+      }
+    });
 
     socket.on('message:status', ({ connection, messageIds = [], deliveredAt, readAt }) => {
-      setMessages(prev => {
+      setMessages((prev) => {
         const current = prev[connection] || [];
         const ids = new Set(messageIds.map(String));
+
         if (!ids.size) return prev;
-        const next = current.map(message => {
+
+        const next = current.map((message) => {
           const id = String(message.id || message._id);
           if (!ids.has(id)) return message;
+
           return {
             ...message,
             ...(deliveredAt ? { deliveredAt } : {}),
             ...(readAt ? { readAt } : {}),
           };
         });
-        return { ...prev, [connection]: next };
-      });
-    });
 
-    socket.on('message:update', (message) => {
-      setMessages(prev => {
-        const current = prev[message.connection] || [];
-        const index = current.findIndex(m => String(m.id || m._id) === String(message.id));
-        if (index === -1) return { ...prev, [message.connection]: [...current, message] };
-        const next = [...current];
-        next[index] = { ...next[index], ...message };
-        return { ...prev, [message.connection]: next };
-      });
-    });
+        setChatMeta((metaPrev) => ({
+          ...metaPrev,
+          [String(connection)]: {
+            ...buildChatMeta(next),
+            unreadCount:
+              readAt && String(selectedId) === String(connection)
+                ? 0
+                : metaPrev[String(connection)]?.unreadCount ?? 0,
+          },
+        }));
 
-    socket.on('message:deleted', ({ connection, messageId, mode }) => {
-      setMessages(prev => {
-        const current = prev[connection] || [];
-        const id = String(messageId);
-        if (mode === 'everyone') {
-          return { ...prev, [connection]: current.filter(m => String(m.id || m._id) !== id) };
-        }
         return {
           ...prev,
-          [connection]: current.map(message =>
-            String(message.id || message._id) === id
-              ? { ...message, deletedForMe: true, text: 'This message was deleted' }
-              : message
-          ),
+          [connection]: next,
         };
       });
     });
 
-    socket.on('chat:cleared', ({ connection }) => {
-      setMessages(prev => ({ ...prev, [connection]: [] }));
-    });
     socket.on('connection:new', () => {
       refreshConnections();
       setNotice('New chat invite received.');
@@ -160,10 +317,33 @@ export default function Chat() {
     if (!selectedId || selected?.status !== 'accepted') return;
     socketRef.current?.emit('conversation:join', { connectionId: selectedId });
     api.get(`/messages/${selectedId}`)
-      .then(({ data }) => setMessages(prev => ({ ...prev, [selectedId]: data.messages })))
+      .then(({ data }) => {
+        const nextMessages = data.messages || [];
+
+        setMessages((prev) => ({
+          ...prev,
+          [selectedId]: nextMessages,
+        }));
+
+        setChatMeta((prev) => ({
+          ...prev,
+          [String(selectedId)]: {
+            ...buildChatMeta(nextMessages),
+            unreadCount: 0,
+          },
+        }));
+      })
       .catch(() => {});
     api.post(`/messages/${selectedId}/read`).catch(() => {});
     socketRef.current?.emit('messages:read', { connectionId: selectedId });
+
+    setChatMeta((prev) => ({
+      ...prev,
+      [String(selectedId)]: {
+        ...(prev[String(selectedId)] || {}),
+        unreadCount: 0,
+      },
+    }));
   }, [selectedId, selected?.status]);
 
   useEffect(() => {
@@ -252,9 +432,41 @@ export default function Chat() {
     }
   };
 
+  const getLatestActivityTime = (connection) => {
+    const connectionId = String(connection.id);
+
+    const lastMessage =
+      chatMeta[connectionId]?.lastMessage ||
+      (messages[connectionId]?.length
+        ? messages[connectionId][messages[connectionId].length - 1]
+        : null);
+
+    const messageTime =
+      lastMessage?.createdAt ||
+      lastMessage?.sentAt ||
+      lastMessage?.timestamp ||
+      lastMessage?.updatedAt;
+
+    const messageTimestamp = messageTime
+      ? new Date(messageTime).getTime()
+      : 0;
+
+    const connectionTimestamp = connection.updatedAt
+      ? new Date(connection.updatedAt).getTime()
+      : 0;
+
+    return Math.max(
+      Number.isFinite(messageTimestamp) ? messageTimestamp : 0,
+      Number.isFinite(connectionTimestamp) ? connectionTimestamp : 0
+    );
+  };
+
   const sortedConnections = useMemo(
-    () => [...enrichedConnections].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)),
-    [enrichedConnections]
+    () =>
+      [...enrichedConnections].sort(
+        (a, b) => getLatestActivityTime(b) - getLatestActivityTime(a)
+      ),
+    [enrichedConnections, chatMeta, messages]
   );
 
   return (
@@ -266,26 +478,12 @@ export default function Chat() {
             selected={selected}
             messages={messages[selectedId] || []}
             socket={socketRef.current}
-            onBack={() => {
-              setSelectedId(null);
-              setMobileChat(false);
-            }}
-            onLocalRemoveMessage={(connectionId, messageId) => {
-              setMessages(prev => ({
-                ...prev,
-                [connectionId]: (prev[connectionId] || []).filter(
-                  message => String(message.id || message._id) !== String(messageId)
-                ),
-              }));
-            }}
-            onLocalClearChat={(connectionId) => {
-              setMessages(prev => ({ ...prev, [connectionId]: [] }));
-            }}
+            onBack={() => setMobileChat(false)}
           />
         </div>
 
         <aside className={`${mobileChat ? 'hidden' : 'flex'} lg:flex glass rounded-[28px] min-h-0 flex-col overflow-hidden`}>
-          <header className="relative z-40 px-4 sm:px-5 pt-4 pb-3 border-b border-white/10 bg-black/10">
+          <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-white/10 bg-black/10">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar user={{ ...user, online: true }} showStatus />
@@ -302,64 +500,27 @@ export default function Chat() {
 
             <div className="relative mt-4">
               <Search size={17} className="absolute left-3.5 top-3.5 text-white/30" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-blue-300/30" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username to invite…" className="w-full rounded-2xl glass-soft pl-10 pr-10 py-3 text-sm outline-none placeholder:text-white/25 focus:border-blue-300/30" />
               {search && <button onClick={() => { setSearch(''); setSearchResults([]); }} className="absolute right-2 top-2 h-8 w-8 rounded-xl grid place-items-center hover:bg-white/8 text-white/35" type="button"><X size={15} /></button>}
               {search && searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] max-h-[min(55vh,360px)] overflow-y-auto chat-scroll rounded-2xl border border-blue-100/20 bg-[#020914] shadow-[0_24px_70px_rgba(0,0,0,.75)] p-2 animate-pop isolate">
-                  {searchResults.map(result => {
-                    const connection = connectionByUserId.get(String(result.id));
-                    const isConnected = connection?.status === 'accepted';
-                    const isPending = connection?.status === 'pending';
-
-                    if (isConnected) {
-                      return (
-                        <button
-                          key={result.id}
-                          type="button"
-                          onClick={() => openConnectionFromSearch(connection)}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl text-left bg-[#0a1c33] border border-blue-200/15 hover:bg-[#102b4d] hover:border-blue-200/30 transition shadow-[inset_0_1px_0_rgba(255,255,255,.04),0_8px_24px_rgba(0,0,0,.20)]"
-                        >
-                          <Avatar user={result} showStatus size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{result.username}</p>
-                            <p className="text-[11px] text-blue-100/65 mt-0.5">Already connected · click to open chat</p>
-                          </div>
-                          <span className="shrink-0 rounded-xl bg-blue-400/20 border border-blue-200/25 px-3 py-2 text-xs font-bold text-white shadow-[0_6px_18px_rgba(59,130,246,.16)]">Open chat</span>
-                        </button>
-                      );
-                    }
-
-                    if (isPending) {
-                      return (
-                        <div key={result.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0a1728] border border-white/[.07] hover:bg-[#10243d] transition">
-                          <Avatar user={result} showStatus size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{result.username}</p>
-                            <p className="text-[10px] text-amber-100/50">Chat invite pending</p>
-                          </div>
-                          <span className="shrink-0 rounded-xl bg-amber-400/10 border border-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100/80">Pending</span>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={result.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0a1728] border border-white/[.07] hover:bg-[#10243d] transition">
-                        <Avatar user={result} showStatus size="sm" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{result.username}</p>
-                          <p className="text-[10px] text-white/35">{result.online ? 'Online now' : 'Username match'}</p>
-                        </div>
-                        <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="shrink-0 rounded-xl bg-blue-400/20 border border-blue-200/20 px-3 py-2 text-xs font-bold text-blue-100 hover:bg-blue-400/30 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
+                <div className="absolute left-0 right-0 top-[52px] z-20 glass rounded-2xl p-2 shadow-glass animate-pop">
+                  {searchResults.map(result => (
+                    <div key={result.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5">
+                      <Avatar user={result} showStatus size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{result.username}</p>
+                        <p className="text-[10px] text-white/35">{result.online ? 'Online now' : 'Username match'}</p>
                       </div>
-                    );
-                  })}
+                      <button disabled={busyUser === result.username} onClick={() => invite(result.username)} className="rounded-xl bg-blue-400/15 border border-blue-300/15 px-3 py-2 text-xs font-bold text-blue-200 disabled:opacity-40" type="button"><UserRound size={13} className="inline mr-1" />{busyUser === result.username ? 'Sending…' : 'Invite'}</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
             {notice && <button onClick={() => setNotice('')} className="mt-3 w-full text-left rounded-xl bg-blue-500/10 border border-blue-300/10 px-3 py-2 text-xs text-white/60 truncate" type="button">{notice}</button>}
           </header>
 
-          <div className="relative z-10 flex-1 overflow-y-auto chat-scroll p-2.5 sm:p-3 space-y-1.5">
+          <div className="flex-1 overflow-y-auto chat-scroll p-2.5 sm:p-3 space-y-1.5">
             <div className="px-2 pt-2 pb-2 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[.12em] text-white/30">People & chats</p>
               <span className="text-[10px] text-white/20">{connections.length}</span>
@@ -378,7 +539,20 @@ export default function Chat() {
                 key={item.id}
                 item={item}
                 active={selectedId === item.id}
-                onClick={() => { setSelectedId(item.id); setMobileChat(true); }}
+                lastMessage={chatMeta[String(item.id)]?.lastMessage}
+                unreadCount={chatMeta[String(item.id)]?.unreadCount || 0}
+                onClick={() => {
+                  setSelectedId(item.id);
+                  setMobileChat(true);
+
+                  setChatMeta((prev) => ({
+                    ...prev,
+                    [String(item.id)]: {
+                      ...(prev[String(item.id)] || {}),
+                      unreadCount: 0,
+                    },
+                  }));
+                }}
                 onAccept={() => respond(item.id, 'accept')}
                 onDecline={() => respond(item.id, 'decline')}
               />
