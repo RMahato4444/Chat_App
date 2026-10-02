@@ -20,7 +20,10 @@ function publicUser(user, presence = {}) {
 export async function searchUsers(req, res) {
   const q = String(req.query.q || '').trim();
   if (!q) return res.json({ users: [] });
-  const users = await User.find({ usernameLower: { $regex: q.toLowerCase(), $options: 'i' }, _id: { $ne: req.user._id } })
+  const users = await User.find({
+    usernameLower: { $regex: q.toLowerCase(), $options: 'i' },
+    _id: { $ne: req.user._id }
+  })
     .select('_id username profilePicture lastSeen')
     .limit(20);
   res.json({ users: users.map(user => publicUser(user)) });
@@ -41,6 +44,7 @@ function getExtension(mimetype, originalname) {
 
 function getStoragePath(profilePicture) {
   if (!profilePicture || !profilePicture.includes('/storage/v1/object/public/')) return null;
+
   const marker = '/storage/v1/object/public/';
   const afterMarker = profilePicture.split(marker)[1];
   if (!afterMarker) return null;
@@ -53,50 +57,85 @@ function getStoragePath(profilePicture) {
   return bucket === SUPABASE_BUCKET ? filePath : null;
 }
 
-async function removeOldProfilePicture(profilePicture) {
+async function removeStoredProfilePicture(profilePicture) {
   const oldPath = getStoragePath(profilePicture);
   if (!oldPath) return;
 
-  const supabase = requireSupabase();
-  const { error } = await supabase.storage.from(SUPABASE_BUCKET).remove([oldPath]);
-  if (error) console.warn('Could not remove old profile picture:', error.message);
+  try {
+    const supabase = requireSupabase();
+    const { error } = await supabase.storage.from(SUPABASE_BUCKET).remove([oldPath]);
+    if (error) console.warn('Could not remove old profile picture:', error.message);
+  } catch (error) {
+    console.warn('Could not remove old profile picture:', error.message);
+  }
 }
 
 export async function uploadProfilePicture(req, res) {
-  if (!req.file) return res.status(400).json({ message: 'Please choose an image.' });
+  if (!req.file) {
+    return res.status(400).json({ message: 'Please choose a JPG, PNG, or WEBP image up to 3 MB.' });
+  }
 
-  const supabase = requireSupabase();
-  const extension = getExtension(req.file.mimetype, req.file.originalname);
-  const storagePath = `avatars/${req.user._id.toString()}/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${extension}`;
+  try {
+    const supabase = requireSupabase();
+    const extension = getExtension(req.file.mimetype, req.file.originalname);
+    const storagePath = `${req.user._id.toString()}/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${extension}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(SUPABASE_BUCKET)
-    .upload(storagePath, req.file.buffer, {
-      contentType: req.file.mimetype,
-      cacheControl: '31536000',
-      upsert: false
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload failed:', uploadError);
+      return res.status(502).json({ message: `Could not upload profile picture: ${uploadError.message}` });
+    }
+
+    const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
+    const publicUrl = data?.publicUrl;
+
+    if (!publicUrl) {
+      await supabase.storage.from(SUPABASE_BUCKET).remove([storagePath]);
+      return res.status(502).json({ message: 'Could not create profile picture URL.' });
+    }
+
+    const previousPicture = req.user.profilePicture;
+    req.user.profilePicture = publicUrl;
+    await req.user.save();
+
+    await removeStoredProfilePicture(previousPicture);
+
+    return res.json({ user: publicUser(req.user) });
+  } catch (error) {
+    console.error('Profile picture upload error:', error);
+    return res.status(error?.statusCode || 500).json({
+      message: error?.message || 'Could not upload profile picture.'
     });
-
-  if (uploadError) {
-    console.error('Supabase upload failed:', uploadError);
-    return res.status(502).json({ message: 'Could not upload profile picture.' });
   }
+}
 
-  const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(storagePath);
-  const publicUrl = data?.publicUrl;
+export async function removeProfilePicture(req, res) {
+  try {
+    const previousPicture = req.user.profilePicture;
 
-  if (!publicUrl) {
-    await supabase.storage.from(SUPABASE_BUCKET).remove([storagePath]);
-    return res.status(502).json({ message: 'Could not create profile picture URL.' });
+    if (!previousPicture) {
+      return res.json({ user: publicUser(req.user), message: 'No profile picture to remove.' });
+    }
+
+    req.user.profilePicture = null;
+    await req.user.save();
+
+    await removeStoredProfilePicture(previousPicture);
+
+    return res.json({ user: publicUser(req.user) });
+  } catch (error) {
+    console.error('Profile picture removal error:', error);
+    return res.status(error?.statusCode || 500).json({
+      message: error?.message || 'Could not remove profile picture.'
+    });
   }
-
-  const previousPicture = req.user.profilePicture;
-  req.user.profilePicture = publicUrl;
-  await req.user.save();
-
-  await removeOldProfilePicture(previousPicture);
-
-  res.json({ user: publicUser(req.user) });
 }
 
 export async function getConnections(req, res) {
@@ -115,7 +154,10 @@ export async function getConnections(req, res) {
       id: c._id.toString(),
       status: c.status,
       requestedBy: c.requestedBy.toString(),
-      user: publicUser(other, { online, lastSeen: online ? null : getLastSeen(otherId, other.lastSeen) }),
+      user: publicUser(other, {
+        online,
+        lastSeen: online ? null : getLastSeen(otherId, other.lastSeen)
+      }),
       updatedAt: c.updatedAt
     };
   });
