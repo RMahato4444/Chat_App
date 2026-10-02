@@ -6,11 +6,15 @@ function timeLabel(date) {
   return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatWindow({ currentUser, selected, messages, socket, onBack }) {
+export default function ChatWindow({ currentUser, selected, messages = [], socket, onBack }) {
   const [text, setText] = useState('');
   const endRef = useRef(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
+  useEffect(() => {
+    const node = endRef.current;
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const send = (e) => {
     e?.preventDefault();
